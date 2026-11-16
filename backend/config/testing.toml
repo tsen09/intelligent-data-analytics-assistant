@@ -1,0 +1,22 @@
+# ============================================================================
+# Kathy - Testing Environment Configuration
+# ============================================================================
+
+[app]
+module = "src.main:app"
+name = "Kathy"
+debug = true
+host = "127.0.0.1"
+port = 8001
+
+[database]
+driver = "postgresql"
+host = "localhost"
+port = 5432
+name = "kathy-test"
+pool_size = 5
+max_overflow = 10
+
+[python]
+unbuffered = 1
+dont_write_bytecode = 1
