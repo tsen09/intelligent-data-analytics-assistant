@@ -147,6 +147,119 @@ Kathy is being developed incrementally, with an emphasis on validating its core 
 
 ---
 
+## ⚙️ Setup & Usage
+
+Follow these steps to clone, set up, and run Kathy locally.
+
+### Prerequisites
+
+- **Git** – Required to clone the repository.
+- **curl** – Required by the setup script to install [uv](https://docs.astral.sh/uv/) automatically if it is not already available.
+
+**Note:** Python 3.13+ and `uv` do not need to be installed beforehand. Kathy's setup script handles their installation automatically.
+
+### 1. Clone the Repository
+
+```bash
+git clone https://github.com/tsen09/intelligent-data-analytics-assistant.git
+cd intelligent-data-analytics-assistant
+```
+
+### 2. Set Up Kathy
+
+Run the setup command to create the Python virtual environment and install the required dependencies using `uv`.
+
+```bash
+./kathy.sh setup
+```
+
+Alternatively, use the shorthand:
+
+```bash
+./kathy.sh -s
+```
+
+### 3. Configure the Environment
+
+Before starting Kathy, configure the environment variables.
+
+Create a `.env` file in the project root using the provided example:
+
+```bash
+cp .env.example .env
+```
+
+Set the appropriate environment in `.env`:
+
+```bash
+ENV="development"
+```
+
+Kathy automatically loads the corresponding configuration file from `backend/config/`:
+
+| Environment | Configuration file |
+|---|---|
+| Development | `backend/config/development.sh` |
+| Testing | `backend/config/testing.sh` |
+| Production | `backend/config/production.sh` |
+
+Update the selected configuration file with the appropriate application and database settings.
+
+### 4. Run Kathy
+
+Start the application:
+
+```bash
+./kathy.sh run
+```
+
+If the project environment has not been configured, Kathy will prompt you to run the setup automatically.
+
+By default, the application runs at:
+
+```text
+http://127.0.0.1:8000
+```
+
+### 5. Uninstall Kathy
+
+To remove Kathy's local Python environment and generated build/cache artifacts:
+
+```bash
+./kathy.sh --remove
+```
+
+Alternatively:
+
+```bash
+./kathy.sh -r
+```
+
+Kathy will ask for confirmation before proceeding. Enter `y` to confirm or `n` to cancel.
+
+To skip the confirmation prompt:
+
+```bash
+./kathy.sh --remove --yes
+```
+
+**Note:** Uninstallation preserves your source code, Git history, documentation, environment configuration, and shared system dependencies. It does not uninstall Python, `uv`, or any system-wide database installations.
+
+### CLI Reference
+
+| Command | Description |
+|---|---|
+| `./kathy.sh setup` | Set up the project environment |
+| `./kathy.sh -s` | Set up the project environment (shorthand) |
+| `./kathy.sh run` | Start Kathy |
+| `./kathy.sh --remove` | Uninstall Kathy |
+| `./kathy.sh -r` | Uninstall Kathy (shorthand) |
+| `./kathy.sh --remove --yes` | Uninstall Kathy without confirmation |
+| `./kathy.sh --version` | Display the project version |
+| `./kathy.sh --help` | Display available commands |
+
+---
+
 ## Author & Acknowledgements
 
 **Kathy** is created and maintained by [Tanmoy Sen](https://github.com/tsen09).

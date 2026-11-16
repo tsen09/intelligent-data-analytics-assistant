@@ -1,0 +1,22 @@
+# ============================================================================
+# Kathy - Development Environment Configuration
+# ============================================================================
+
+[app]
+module = "app.main:app"
+name = "Kathy"
+debug = true
+host = "127.0.0.1"
+port = 8000
+
+[database]
+driver = "postgresql"
+host = "localhost"
+port = 5432
+name = "kathy-dev"
+pool_size = 5
+max_overflow = 10
+
+[python]
+unbuffered = 1
+dont_write_bytecode = 1
