@@ -3,7 +3,7 @@
 # ============================================================================
 
 [app]
-module = "src.main:app"
+module = "app.main:app"
 name = "Kathy"
 debug = true
 host = "127.0.0.1"

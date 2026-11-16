@@ -29,81 +29,13 @@ VENV_PYTHON="$VENV_DIR/bin/python"
 source "$SCRIPTS_DIR/lib/common.sh"
 
 # ============================================================================
-# Configuration Loading
-# ============================================================================
-
-load_configuration() {
-
-    # ------------------------------------------------------------------------
-    # Load Environment Variables
-    # ------------------------------------------------------------------------
-
-    if [[ ! -f "$ENV_FILE" ]]; then
-        log_error ".env file not found: $ENV_FILE"
-        log_info "Create one using .env.example in the project root."
-        exit 1
-    fi
-
-    set -a
-    # shellcheck disable=SC1090
-    source "$ENV_FILE"
-    set +a
-
-    # ------------------------------------------------------------------------
-    # Validate Environment
-    # ------------------------------------------------------------------------
-
-    if [[ -z "${ENV:-}" ]]; then
-        log_error "ENV is not defined in .env."
-        exit 1
-    fi
-
-    case "$ENV" in
-        development|testing|production)
-            SETTINGS_FILE="$CONFIG_DIR/${ENV}.sh"
-            ;;
-        *)
-            log_error "Invalid environment: $ENV"
-            log_error "Allowed environments: development, testing, production"
-            exit 1
-            ;;
-    esac
-
-    # ------------------------------------------------------------------------
-    # Load Environment-Specific Settings
-    # ------------------------------------------------------------------------
-
-    if [[ ! -f "$SETTINGS_FILE" ]]; then
-        log_error "Configuration file not found: $SETTINGS_FILE"
-        exit 1
-    fi
-
-    set -a
-    # shellcheck disable=SC1090
-    source "$SETTINGS_FILE"
-    set +a
-
-    # ------------------------------------------------------------------------
-    # Application Defaults
-    # ------------------------------------------------------------------------
-
-    APP_MODULE="${KATHY_APP_MODULE:-src.main:app}"
-    HOST="${KATHY_HOST:-127.0.0.1}"
-    PORT="${KATHY_PORT:-8000}"
-}
-
-# ============================================================================
-# Environment Validation
+# Environment Validation & Setup
 # ============================================================================
 
 is_setup_complete() {
     [[ -x "$VENV_PYTHON" ]] &&
         "$VENV_PYTHON" -c "import uvicorn" &>/dev/null
 }
-
-# ============================================================================
-# Setup Confirmation
-# ============================================================================
 
 confirm_setup() {
 
@@ -133,10 +65,6 @@ confirm_setup() {
     esac
 }
 
-# ============================================================================
-# Environment Setup
-# ============================================================================
-
 ensure_setup() {
 
     if is_setup_complete; then
@@ -165,14 +93,119 @@ ensure_setup() {
 }
 
 # ============================================================================
+# Configuration Loading
+# ============================================================================
+
+load_toml_exports() {
+    local toml_file="$1"
+
+    "$VENV_PYTHON" - "$toml_file" <<'PY'
+import shlex
+import sys
+import tomllib
+
+with open(sys.argv[1], "rb") as f:
+    data = tomllib.load(f)
+
+app = data.get("app", {})
+db = data.get("database", {})
+py = data.get("python", {})
+
+exports = {
+    "KATHY_APP_MODULE": app.get("module"),
+    "APP_NAME": app.get("name"),
+    "APP_DEBUG": str(app["debug"]).lower() if "debug" in app else None,
+    "KATHY_HOST": app.get("host"),
+    "KATHY_PORT": app.get("port"),
+    "DB_DRIVER": db.get("driver"),
+    "DB_HOST": db.get("host"),
+    "DB_PORT": db.get("port"),
+    "DB_NAME": db.get("name"),
+    "DB_POOL_SIZE": db.get("pool_size"),
+    "DB_MAX_OVERFLOW": db.get("max_overflow"),
+    "PYTHONUNBUFFERED": py.get("unbuffered"),
+    "PYTHONDONTWRITEBYTECODE": py.get("dont_write_bytecode"),
+}
+
+for key, val in exports.items():
+    if val is not None:
+        print(f"export {key}={shlex.quote(str(val))}")
+PY
+}
+
+load_configuration() {
+
+    # ------------------------------------------------------------------------
+    # Load Base Environment Variables (.env)
+    # ------------------------------------------------------------------------
+
+    if [[ ! -f "$ENV_FILE" ]]; then
+        log_error ".env file not found: $ENV_FILE"
+        log_info "Create one using .env.example in the project root."
+        exit 1
+    fi
+
+    set -a
+    # shellcheck disable=SC1090
+    source "$ENV_FILE"
+    set +a
+
+    # ------------------------------------------------------------------------
+    # Validate Environment
+    # ------------------------------------------------------------------------
+
+    if [[ -z "${ENV:-}" ]]; then
+        log_error "ENV is not defined in .env."
+        exit 1
+    fi
+
+    case "$ENV" in
+        development|testing|production)
+            SETTINGS_FILE="$CONFIG_DIR/${ENV}.toml"
+            ;;
+        *)
+            log_error "Invalid environment: $ENV"
+            log_error "Allowed environments: development, testing, production"
+            exit 1
+            ;;
+    esac
+
+    # ------------------------------------------------------------------------
+    # Load Environment-Specific TOML Settings
+    # ------------------------------------------------------------------------
+
+    if [[ ! -f "$SETTINGS_FILE" ]]; then
+        log_error "Configuration file not found: $SETTINGS_FILE"
+        exit 1
+    fi
+
+    local toml_exports
+    toml_exports="$(load_toml_exports "$SETTINGS_FILE")"
+    eval "$toml_exports"
+
+    # ------------------------------------------------------------------------
+    # Application Defaults
+    # ------------------------------------------------------------------------
+
+    APP_MODULE="${KATHY_APP_MODULE:-src.main:app}"
+    HOST="${KATHY_HOST:-127.0.0.1}"
+    PORT="${KATHY_PORT:-8000}"
+}
+
+# ============================================================================
 # Application Startup
 # ============================================================================
 
 start_kathy() {
 
-    if ! command -v uv &>/dev/null; then
-        log_error "uv is required to run Kathy."
-        exit 1
+    local uvicorn_args=(
+        "$APP_MODULE"
+        --host "$HOST"
+        --port "$PORT"
+    )
+
+    if [[ "$ENV" == "development" || "${APP_DEBUG:-false}" == "true" ]]; then
+        uvicorn_args+=(--reload)
     fi
 
     printf '\n'
@@ -180,8 +213,9 @@ start_kathy() {
 
     printf '\n'
     printf '%bAPPLICATION CONFIGURATION%b\n' "$BOLD" "$RESET"
-    printf '  Application : Kathy\n'
+    printf '  Application : %s\n' "${APP_NAME:-Kathy}"
     printf '  Environment : %s\n' "$ENV"
+    printf '  Debug Mode  : %s\n' "${APP_DEBUG:-false}"
     printf '  Host        : %s\n' "$HOST"
     printf '  Port        : %s\n' "$PORT"
     printf '  Entry point : %s\n\n' "$APP_MODULE"
@@ -191,11 +225,7 @@ start_kathy() {
     exec uv run \
         --project "$PROJECT_ROOT/backend" \
         --no-sync \
-        python -m uvicorn \
-        "$APP_MODULE" \
-        --host "$HOST" \
-        --port "$PORT" \
-        --reload
+        python -m uvicorn "${uvicorn_args[@]}"
 }
 
 # ============================================================================
@@ -206,14 +236,14 @@ main() {
 
     print_banner
 
-    load_configuration
-
     if ! command -v uv &>/dev/null; then
         log_error "uv is not installed or not available in PATH."
         exit 1
     fi
 
     ensure_setup
+
+    load_configuration
 
     start_kathy
 }
